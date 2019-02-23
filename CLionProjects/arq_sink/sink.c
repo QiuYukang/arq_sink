@@ -1,9 +1,7 @@
 #include <stdio.h>
-#include <stdlib.h>
+#include "protocol.h"
 
-#include "arq.h"
-
-int process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[]) {
+int process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]) {
     show_packet(*pk_ptr);
 
     switch (pk_ptr->type) {
@@ -11,31 +9,31 @@ int process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short 
         case reliable2:
         case reliable4:
         case reliable6:
-            process_data_frame(pk_ptr, seq_link_list);
+            process_data_frame(pk_ptr, seq_link_list, recv_buf);
             break;
         case ack_request:
-            process_ack_request_frame(pk_ptr, seq_link_list, required_seq);
+            process_ack_request_frame(pk_ptr, seq_link_list, required_seq, recv_buf);
         default:
-            printf("%s", "\nå¸§ç±»å‹é”™è¯¯ï¼\n");
+            printf("%s", "\nÖ¡ÀàĞÍ´íÎó£¡\n");
             return 0;
     }
 
     return 1;
 }
 
-int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list) {
-    // è·å–æ€»åºå·
+int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, Recv_List_Node recv_buf[]) {
+    // »ñÈ¡×ÜĞòºÅ
     unsigned short Seq = pk_ptr->data.packet_data.seq_group.sequence;
 
-    // æŠŠæ€»åºå·æ’å…¥åˆ°åºå·é“¾è¡¨ä¸­
-    // åºå·æ’å…¥å¤±è´¥ï¼ˆåºå·æœ‰é‡å¤ï¼‰
+    // °Ñ×ÜĞòºÅ²åÈëµ½ĞòºÅÁ´±íÖĞ
+    // ĞòºÅ²åÈëÊ§°Ü£¨ĞòºÅÓĞÖØ¸´£©
     if (!insert_seq_link_list(Seq, seq_link_list)) {
         return 0;
     }
 
     char QNum = pk_ptr->data.packet_data.seq_group.queue_num;
 
-    // æŠŠPacketæ’å…¥åˆ°é˜Ÿåˆ—ç¼“å†²åŒºä¸­å¹¶åœ¨æœ¬é˜Ÿåˆ—å†…æŒ‰åºæäº¤
+    // °ÑPacket²åÈëµ½¶ÓÁĞ»º³åÇøÖĞ²¢ÔÚ±¾¶ÓÁĞÄÚ°´ĞòÌá½»
     insert_pk_list(pk_ptr, recv_buf);
     commit_pk_list(QNum, recv_buf);
 
@@ -43,28 +41,28 @@ int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list) {
 }
 
 /**
- * å¤„ç† ack request å¸§
- * @param pk_ptr æŒ‡å‘è¦å¤„ç†çš„ Packet æŒ‡é’ˆ
- * @param seq_link_list åºå·é“¾è¡¨
- * @param required_seq æ„é€  ack response ç”¨çš„å¾…æ¥æ”¶åºå·æ•°ç»„
- * @return requried_seq æ•°ç»„çš„æœ‰æ•ˆåºå·ä¸ªæ•°
+ * ´¦Àí ack request Ö¡
+ * @param pk_ptr Ö¸ÏòÒª´¦ÀíµÄ Packet Ö¸Õë
+ * @param seq_link_list ĞòºÅÁ´±í
+ * @param required_seq ¹¹Ôì ack response ÓÃµÄ´ı½ÓÊÕĞòºÅÊı×é
+ * @return requried_seq Êı×éµÄÓĞĞ§ĞòºÅ¸öÊı
  */
-int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[]) {
-    // éå†ack_requestå¸§ä¸­çš„åºå·ç»„ï¼ˆæ”¾å¼ƒæ¥æ”¶çš„åºå·ï¼‰
+int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]) {
+    // ±éÀúack_requestÖ¡ÖĞµÄĞòºÅ×é£¨·ÅÆú½ÓÊÕµÄĞòºÅ£©
     for (int i = 0; i < pk_ptr->length; i++) {
         Sequence_Group seq_group = pk_ptr->data.packet_ack_request.seq_group[i];
         Packet *new_pk = (Packet *) malloc(sizeof(Packet));
 
-        // æ–°å»ºä¸€ä¸ªåªæœ‰åºå·ç»„æ²¡æœ‰å®é™…æ•°æ®çš„çš„Data Packet,å¹¶æå‰æäº¤é˜Ÿåˆ—æ•°æ®
+        // ĞÂ½¨Ò»¸öÖ»ÓĞĞòºÅ×éÃ»ÓĞÊµ¼ÊÊı¾İµÄµÄData Packet,²¢ÌáÇ°Ìá½»¶ÓÁĞÊı¾İ
         new_pk->data.packet_data.seq_group = seq_group;
         insert_pk_list(new_pk, recv_buf);
         commit_pk_list(seq_group.queue_num, recv_buf);
 
-        // å¤„ç†åºå·é“¾è¡¨
+        // ´¦ÀíĞòºÅÁ´±í
         insert_seq_link_list(seq_group.sequence, seq_link_list);
         int seq_num = commit_seq_link_list(seq_link_list, required_seq);
 
-        // æ„é€  ack response Packet
+        // ¹¹Ôì ack response Packet
         Packet packet = create_ack_response(seq_num, required_seq);
 
         show_packet(packet);
@@ -73,15 +71,15 @@ int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsi
     return 1;
 }
 
-// åˆå§‹åŒ–åºå·é“¾è¡¨
+// ³õÊ¼»¯ĞòºÅÁ´±í
 void init_seq_link_list(Seq_Link_List *seq_link_list) {
     seq_link_list->length = 0;
     seq_link_list->head = NULL;
 }
 
-// æŠŠåºå·æ’å…¥åˆ°åºå·é“¾è¡¨ä¸­
+// °ÑĞòºÅ²åÈëµ½ĞòºÅÁ´±íÖĞ
 int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
-    // åˆ›å»ºæ–°èŠ‚ç‚¹
+    // ´´½¨ĞÂ½Úµã
     Seq_Link_List_Node *p_new_node = (Seq_Link_List_Node *) malloc(sizeof(Seq_Link_List_Node));
     p_new_node->sequence = seq;
     p_new_node->next = NULL;
@@ -93,7 +91,7 @@ int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
         Seq_Link_List_Node *copy_p = seq_link_list->head;
         Seq_Link_List_Node *copy_p_next = seq_link_list->head->next;
 
-        // æ’å…¥åˆ°é˜Ÿé¦–
+        // ²åÈëµ½¶ÓÊ×
         if (copy_p->sequence > seq) {
             p_new_node->next = copy_p;
             seq_link_list->head = p_new_node;
@@ -101,19 +99,19 @@ int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
             return 1;
         }
 
-        // æŒ‡é’ˆç§»åŠ¨
+        // Ö¸ÕëÒÆ¶¯
         while (copy_p_next != NULL && seq > copy_p_next->sequence) {
             copy_p = copy_p_next;
             copy_p_next = copy_p_next->next;
         }
 
-        // æ’å…¥åˆ°é˜Ÿä¸­/å°¾
+        // ²åÈëµ½¶ÓÖĞ/Î²
         if (seq == copy_p->sequence || (copy_p_next != NULL && seq == copy_p_next->sequence)) {
-            printf("%s", "\næ”¶åˆ°é‡å¤å¸§\n");
+            printf("%s", "\nÊÕµ½ÖØ¸´Ö¡\n");
             return 0;
         }
 
-        // æ’å…¥
+        // ²åÈë
         copy_p->next = p_new_node;
         p_new_node->next = copy_p_next;
         seq_link_list->length++;
@@ -122,7 +120,7 @@ int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
     return 1;
 }
 
-// æäº¤åºå·é“¾è¡¨ï¼Œè¿”å›éœ€è¦é‡ä¼ çš„æ€»åºå·æ•°ç»„å¤§å°
+// Ìá½»ĞòºÅÁ´±í£¬·µ»ØĞèÒªÖØ´«µÄ×ÜĞòºÅÊı×é´óĞ¡
 int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_seq[]) {
     if (seq_link_list->length == 0)
         return 0;
@@ -131,7 +129,7 @@ int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_s
     int num = 0;
     unsigned short temp_seq = copy_p->sequence;
 
-    // åºå·è¿ç»­åŒºåŸŸ
+    // ĞòºÅÁ¬ĞøÇøÓò
     while (copy_p->next != NULL && copy_p->next->sequence == (temp_seq + 1)) {
         seq_link_list->head = copy_p->next;
         free(copy_p);
@@ -139,7 +137,7 @@ int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_s
         temp_seq++;
     }
 
-    // åºå·ä¸è¿ç»­åŒºåŸŸ
+    // ĞòºÅ²»Á¬ĞøÇøÓò
     while (copy_p->next != NULL && num <= 16) {
         if (copy_p->next->sequence != (temp_seq + 1)) {
             temp_seq++;
@@ -154,7 +152,7 @@ int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_s
     return num;
 }
 
-// åˆå§‹åŒ–æ¥æ”¶ç¼“å†²åŒº
+// ³õÊ¼»¯½ÓÊÕ»º³åÇø
 void init_recv_buf(Recv_List_Node recv_buf[]) {
     for (int i = 0; i < QUEUE_NUM; i++) {
         recv_buf[i].require_seq = 0;
@@ -162,7 +160,7 @@ void init_recv_buf(Recv_List_Node recv_buf[]) {
     }
 }
 
-// è·å–ä¸€ä¸ªç©ºçš„ç¼“å­˜é˜Ÿåˆ—
+// »ñÈ¡Ò»¸ö¿ÕµÄ»º´æ¶ÓÁĞ
 Packet_List *get_pk_list() {
     Packet_List *pk_list = (Packet_List *) malloc(sizeof(Packet_List));
     pk_list->head = NULL;
@@ -171,22 +169,18 @@ Packet_List *get_pk_list() {
     return pk_list;
 }
 
-// æŠŠä¸€ä¸ªPacketæ’å…¥å¯¹åº”çš„ç¼“å­˜é˜Ÿåˆ—
+// °ÑÒ»¸öPacket²åÈë¶ÔÓ¦µÄ»º´æ¶ÓÁĞ
 int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]) {
-    // è·å–åŒ…å†…çš„é˜Ÿåˆ—å·å’Œé˜Ÿå†…åºå·
+    // »ñÈ¡°üÄÚµÄ¶ÓÁĞºÅºÍ¶ÓÄÚĞòºÅ
     char QNum = p_pk->data.packet_data.seq_group.queue_num;
     char QSeq = p_pk->data.packet_data.seq_group.queue_seq;
-    // åˆ›å»ºæ–°èŠ‚ç‚¹
-    Packet_List_Node *new_pk_node = (Packet_List_Node *) malloc(sizeof(Packet_List_Node));
-    new_pk_node->packet = p_pk;
-    new_pk_node->next = NULL;
+    // ´´½¨ĞÂ½Úµã
+    Packet_List_Node *new_pk_list_node = (Packet_List_Node *) malloc(sizeof(Packet_List_Node));
+    new_pk_list_node->packet = p_pk;
+    new_pk_list_node->next = NULL;
 
-    // å½“å‰ç¼“å­˜é˜Ÿåˆ—ä¸ºç©º
+    // µ±Ç°»º´æ¶ÓÁĞÎª¿Õ
     if (recv_buf[QNum].pk_list.length == 0) {
-        Packet_List_Node *new_pk_list_node = (Packet_List_Node *) malloc(sizeof(Packet_List_Node));
-        new_pk_list_node->packet = p_pk;
-        new_pk_list_node->next = NULL;
-
         recv_buf[QNum].pk_list.head = new_pk_list_node;
         recv_buf[QNum].pk_list.length++;
 
@@ -196,40 +190,40 @@ int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]) {
     Packet_List_Node *copy_p = recv_buf[QNum].pk_list.head;
     Packet_List_Node *copy_p_next = copy_p->next;
 
-    // æ’å…¥åˆ°é˜Ÿé¦–
+    // ²åÈëµ½¶ÓÊ×
     if (copy_p->packet->data.packet_data.seq_group.queue_seq > QSeq) {
-        new_pk_node->next = copy_p;
-        recv_buf[QNum].pk_list.head = new_pk_node;
+        new_pk_list_node->next = copy_p;
+        recv_buf[QNum].pk_list.head = new_pk_list_node;
         recv_buf[QNum].pk_list.length++;
         return 1;
     }
 
-    // æ’å…¥åˆ°é˜Ÿä¸­æˆ–é˜Ÿå°¾
-    // æŒ‡é’ˆç§»åŠ¨
+    // ²åÈëµ½¶ÓÖĞ»ò¶ÓÎ²
+    // Ö¸ÕëÒÆ¶¯
     while (copy_p_next != NULL && QSeq > copy_p_next->packet->data.packet_data.seq_group.queue_seq) {
         copy_p = copy_p_next;
         copy_p_next = copy_p_next->next;
     }
-    // æ’å…¥
-    copy_p->next = new_pk_node;
-    new_pk_node->next = copy_p_next;
+    // ²åÈë
+    copy_p->next = new_pk_list_node;
+    new_pk_list_node->next = copy_p_next;
     recv_buf[QNum].pk_list.length++;
 
     return 1;
 }
 
-// æäº¤Packetç¼“å­˜é˜Ÿåˆ—
+// Ìá½»Packet»º´æ¶ÓÁĞ
 int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]) {
     while (recv_buf[QNum].pk_list.length != 0 && recv_buf[QNum].require_seq ==
                                                  recv_buf[QNum].pk_list.head->packet->data.packet_data.seq_group.queue_seq) {
         recv_buf[QNum].require_seq++;
-        Packet_List_Node *pk_node = recv_buf[QNum].pk_list.head->packet;
+        Packet_List_Node *pk_node = recv_buf[QNum].pk_list.head;
         recv_buf[QNum].pk_list.head = pk_node->next;
         recv_buf[QNum].pk_list.length--;
 
-        printf("é˜Ÿåˆ— %d å·²ç»æäº¤åˆ°åºå· %d \n", QNum, recv_buf[QNum].require_seq - 1);
+        printf("¶ÓÁĞ %d ÒÑ¾­Ìá½»µ½ĞòºÅ %d \n", QNum, recv_buf[QNum].require_seq - 1);
 
-        // é‡Šæ”¾å†…å­˜
+        // ÊÍ·ÅÄÚ´æ
         free(pk_node->packet);
         free(pk_node);
     }
@@ -237,7 +231,7 @@ int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]) {
     return 1;
 }
 
-// åˆ›å»º ack response Packet
+// ´´½¨ ack response Packet
 Packet create_ack_response(int seq_num, unsigned short required_seq[]) {
     Packet *pk_p = (Packet *) malloc(sizeof(Packet));
     pk_p->length = (unsigned char) seq_num;
@@ -250,9 +244,9 @@ Packet create_ack_response(int seq_num, unsigned short required_seq[]) {
     return *pk_p;
 }
 
-// æ‰“å° Packet ä¸­çš„ä¿¡æ¯
+// ´òÓ¡ Packet ÖĞµÄĞÅÏ¢
 void show_packet(Packet packet) {
-    printf("----------æ‰“å°Packetä¿¡æ¯-----------\n");
+    printf("----------´òÓ¡PacketĞÅÏ¢-----------\n");
     switch (packet.type) {
         case reliable0:
             printf("type: reliable0\n");
@@ -307,7 +301,7 @@ void show_packet(Packet packet) {
             printf("\n");
             break;
         default:
-            printf("type: éæ³•ç±»å‹\n");
+            printf("type: ·Ç·¨ÀàĞÍ\n");
             break;
     }
 }

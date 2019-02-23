@@ -9,13 +9,13 @@
 
 #endif //ARQ_SINK_PROTOCOL_H
 
-#define QUEUE_NUM 256 // é˜Ÿåˆ—æ•°é‡
+#define QUEUE_NUM 256 // ¶ÓÁĞÊıÁ¿
 
 /* --------------------------------------- */
-/* -------------- åˆ†ç»„æ ¼å¼å®šä¹‰ ------------ */
+/* -------------- ·Ö×é¸ñÊ½¶¨Òå ------------ */
 /* --------------------------------------- */
 
-/* å®šä¹‰å¸§ç±»å‹ */
+/* ¶¨ÒåÖ¡ÀàĞÍ */
 typedef enum Packet_Type {
     reliable0 = 0,
     reliable2,
@@ -25,33 +25,33 @@ typedef enum Packet_Type {
     ack_response
 } Packet_Type;
 
-/* åºå·ç»„ç»“æ„ */
+/* ĞòºÅ×é½á¹¹ */
 typedef struct Sequence_Group {
-    unsigned short sequence;    // æ€»åºå· 16bit
-    unsigned char queue_num;   // é˜Ÿåˆ—å· 8bit
-    unsigned char queue_seq;  // é˜Ÿå†…åºå· 8bit
+    unsigned short sequence;    // ×ÜĞòºÅ 16bit
+    unsigned char queue_num;   // ¶ÓÁĞºÅ 8bit
+    unsigned char queue_seq;  // ¶ÓÄÚĞòºÅ 8bit
 } Sequence_Group;
 
-/* æ•°æ®å¸§æ ¼å¼ï¼ˆé™¤äº† type å’Œ length å­—æ®µ */
+/* Êı¾İÖ¡¸ñÊ½£¨³ıÁË type ºÍ length ×Ö¶Î */
 typedef struct Packet_Data {
     Sequence_Group seq_group;
     char data[100];
 } Packet_Data;
 
-/* ç¡®è®¤è¯·æ±‚å¸§æ ¼å¼ï¼ˆé™¤äº† type å’Œ length å­—æ®µ */
+/* È·ÈÏÇëÇóÖ¡¸ñÊ½£¨³ıÁË type ºÍ length ×Ö¶Î */
 typedef struct Packet_Ack_Request {
     Sequence_Group seq_group[16];
 } Packet_Ack_Request;
 
-/* ç¡®è®¤å“åº”å¸§æ ¼å¼ï¼ˆé™¤äº† type å’Œ length å­—æ®µ */
+/* È·ÈÏÏìÓ¦Ö¡¸ñÊ½£¨³ıÁË type ºÍ length ×Ö¶Î */
 typedef struct Packet_Ack_Response {
     unsigned short sequence[16];
 } Packet_Ack_Response;
 
-/* é€šç”¨å¸§æ ¼å¼å®šä¹‰ */
+/* Í¨ÓÃÖ¡¸ñÊ½¶¨Òå */
 typedef struct Packet {
-    Packet_Type type;   // åªæœ‰4bit
-    unsigned char length; // åªæœ‰4bit
+    Packet_Type type;   // Ö»ÓĞ4bit
+    unsigned char length; // Ö»ÓĞ4bit
     union {
         Packet_Data packet_data;
         Packet_Ack_Request packet_ack_request;
@@ -60,14 +60,14 @@ typedef struct Packet {
 } Packet;
 
 /* --------------------------------------- */
-/* --------- å®šä¹‰åºå·é“¾è¡¨ï¼ˆå•å‘é“¾è¡¨ï¼‰-------- */
+/* --------- ¶¨ÒåĞòºÅÁ´±í£¨µ¥ÏòÁ´±í£©-------- */
 /* --------------------------------------- */
-// å®šä¹‰é“¾è¡¨çš„èŠ‚ç‚¹å…ƒç´ 
+// ¶¨ÒåÁ´±íµÄ½ÚµãÔªËØ
 typedef struct Seq_Link_List_Node {
-    unsigned short sequence;    // æ€»åºå·
-    struct Seq_Link_List_Node *next;    // ä¸‹ä¸€ä¸ªèŠ‚ç‚¹
+    unsigned short sequence;    // ×ÜĞòºÅ
+    struct Seq_Link_List_Node *next;    // ÏÂÒ»¸ö½Úµã
 } Seq_Link_List_Node;
-// å®šä¹‰å•é“¾è¡¨ç»“æ„
+// ¶¨Òåµ¥Á´±í½á¹¹
 typedef struct Seq_Link_List {
     Seq_Link_List_Node *head;
     int length;
@@ -75,39 +75,52 @@ typedef struct Seq_Link_List {
 
 
 /* --------------------------------------- */
-/* ------------- å®šä¹‰æ¥æ”¶ç¼“å†²åŒº ----------- */
+/* ------------- ¶¨Òå½ÓÊÕ»º³åÇø ----------- */
 /* --------------------------------------- */
-// å®šä¹‰å•ä¸ªç¼“å†²é˜Ÿåˆ—èŠ‚ç‚¹
-typedef struct {
+// ¶¨Òåµ¥¸ö»º³å¶ÓÁĞ½Úµã
+typedef struct Packet_List_Node {
     Packet *packet;
     struct Packet_List_Node *next;
 } Packet_List_Node;
-// å®šä¹‰ç¼“å†²é˜Ÿåˆ—
+// ¶¨Òå»º³å¶ÓÁĞ
 typedef struct Packet_List {
     Packet_List_Node *head;
     int length;
 } Packet_List;
 
-// å®šä¹‰æ¥æ”¶ç¼“å­˜åŒºå•ä¸ªå…ƒç´ 
-typedef struct Recv_List_Node{
-    unsigned short require_seq; // æœŸå¾…æ¥æ”¶çš„é˜Ÿå†…åºå·
-    Packet_List pk_list; // Packetç¼“å­˜é˜Ÿåˆ—
+// ¶¨Òå½ÓÊÕ»º´æÇøµ¥¸öÔªËØ
+typedef struct Recv_List_Node {
+    unsigned short require_seq; // ÆÚ´ı½ÓÊÕµÄ¶ÓÄÚĞòºÅ
+    Packet_List pk_list; // Packet»º´æ¶ÓÁĞ
 } Recv_List_Node;
 
 
 /* --------------------------------------- */
-/* ---------------- å‡½æ•°å£°æ˜--------------- */
+/* ---------------- º¯ÊıÉùÃ÷--------------- */
 /* --------------------------------------- */
-int process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[]);
-int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list);
-int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[]);
+int
+process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]);
+
+int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, Recv_List_Node recv_buf[]);
+
+int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[],
+                              Recv_List_Node recv_buf[]);
+
 void init_seq_link_list(Seq_Link_List *seq_link_list);
+
 int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list);
+
 int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short requred_seq[]);
+
 void init_recv_buf(Recv_List_Node recv_buf[]);
-Packet_List * get_pk_list();
+
+Packet_List *get_pk_list();
+
 int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]);
+
 int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]);
+
 Packet create_ack_response(int seq_num, unsigned short required_seq[]);
+
 void show_packet(Packet packet);
 

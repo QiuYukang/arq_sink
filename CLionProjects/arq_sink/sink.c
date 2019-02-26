@@ -9,8 +9,7 @@
  * @param recv_buf 接收缓存区数组
  * @return 0：处理失败；1：处理成功
  */
-int
-process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]) {
+int process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]) {
 //    printf("[process_packet]:");
 //    show_packet(*pk_ptr);
 
@@ -247,7 +246,7 @@ int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_s
  */
 void init_recv_buf(Recv_List_Node recv_buf[]) {
     for (int i = 0; i < QUEUE_NUM; i++) {
-        recv_buf[i].require_seq = 253;
+        recv_buf[i].require_seq = 0;
         recv_buf[i].pk_list = *(get_pk_list());
     }
 }

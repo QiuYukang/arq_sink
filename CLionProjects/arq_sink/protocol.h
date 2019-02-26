@@ -9,7 +9,9 @@
 
 #endif //ARQ_SINK_PROTOCOL_H
 
-#define QUEUE_NUM 256 // 队列数量
+#define QUEUE_NUM 256 // 队列数量(最多支持256个队列)
+#define WINDOWS_SIZE  256  // 接受方的接收窗口大小
+#define MAX_SEQ 65535   // 最大的总序列号
 
 /* --------------------------------------- */
 /* -------------- 分组格式定义 ------------ */
@@ -22,7 +24,8 @@ typedef enum Packet_Type {
     reliable4,
     reliable6,
     ack_request = 8,
-    ack_response
+    ack_response,
+    abandoned
 } Packet_Type;
 
 /* 序号组结构 */
@@ -90,7 +93,7 @@ typedef struct Packet_List {
 
 // 定义接收缓存区单个元素
 typedef struct Recv_List_Node {
-    unsigned short require_seq; // 期待接收的队内序号
+    unsigned char require_seq; // 期待接收的队内序号
     Packet_List pk_list; // Packet缓存队列
 } Recv_List_Node;
 
@@ -123,4 +126,8 @@ int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]);
 Packet create_ack_response(int seq_num, unsigned short required_seq[]);
 
 void show_packet(Packet packet);
+
+void show_seq_link_list(Seq_Link_List seq_link_list);
+
+void show_recv_buf_queue(Recv_List_Node recv_buf[], unsigned char QNum);
 

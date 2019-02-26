@@ -1,6 +1,14 @@
 #include <stdio.h>
 #include "protocol.h"
 
+/**
+ * 处理一个 Packet
+ * @param pk_ptr Packet指针
+ * @param seq_link_list 总序号链表
+ * @param required_seq 构造 ack response 用的待接收序号数组
+ * @param recv_buf 接收缓存区数组
+ * @return 0：处理失败；1：处理成功
+ */
 int
 process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short required_seq[], Recv_List_Node recv_buf[]) {
 //    printf("[process_packet]:");
@@ -24,6 +32,13 @@ process_packet(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsigned short requ
     return 1;
 }
 
+/**
+ * 处理数据帧
+ * @param pk_ptr Packet指针
+ * @param seq_link_list seq_link_list 总序号链表
+ * @param recv_buf 接收缓存区数组
+ * @return 0：处理失败；1：处理成功
+ */
 int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, Recv_List_Node recv_buf[]) {
     // 获取总序号
     unsigned short Seq = pk_ptr->data.packet_data.seq_group.sequence;
@@ -56,7 +71,7 @@ int process_data_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, Recv_List_N
 /**
  * 处理 ack request 帧
  * @param pk_ptr 指向要处理的 Packet 指针
- * @param seq_link_list 序号链表
+ * @param seq_link_list 总序号链表
  * @param required_seq 构造 ack response 用的待接收序号数组
  * @return requried_seq 数组的有效序号个数
  */
@@ -67,6 +82,14 @@ int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsi
     // 遍历ack_request帧中的序号组（放弃接收的序号）
     for (int i = 0; i < pk_ptr->length; i++) {
         Sequence_Group seq_group = pk_ptr->data.packet_ack_request.seq_group[i];
+
+        // 把放弃接收的序号插入到序号链表中
+        printf("[insert_seq_link_list]:insert abandoned Seq.%d\n", seq_group.sequence);
+        if (!insert_seq_link_list(seq_group.sequence, seq_link_list)) {
+            return 0;
+        }
+        show_seq_link_list(*seq_link_list);
+
         Packet *new_pk = (Packet *) malloc(sizeof(Packet));
 
         // 新建一个只有序号组没有实际数据的的Data Packet,并提前提交队列数据
@@ -81,11 +104,6 @@ int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsi
         printf("[commit_pk_list]:commit in queue[%d]\n", seq_group.queue_num);
         commit_pk_list(seq_group.queue_num, recv_buf);
         printf("    -required QSeq.%d\n", recv_buf[seq_group.queue_num].require_seq);
-
-        // 把放弃接收的序号插入到序号链表中
-        printf("[insert_seq_link_list]:insert abandoned Seq.%d\n", seq_group.sequence);
-        insert_seq_link_list(seq_group.sequence, seq_link_list);
-        show_seq_link_list(*seq_link_list);
     }
 
     // 构造 ack response Packet
@@ -100,13 +118,21 @@ int process_ack_request_frame(Packet *pk_ptr, Seq_Link_List *seq_link_list, unsi
     return 1;
 }
 
-// 初始化序号链表
+/**
+ * // 初始化序号链表
+ * @param seq_link_list 总序号链表
+ */
 void init_seq_link_list(Seq_Link_List *seq_link_list) {
     seq_link_list->length = 0;
     seq_link_list->head = NULL;
 }
 
-// 把序号插入到序号链表中
+/**
+ * 把序号插入到序号链表中
+ * @param seq 要插入的总序号值
+ * @param seq_link_list 总序号链表
+ * @return 0：插入失败（序号重复或者序号超过窗口值）；1：插入成功
+ */
 int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
     // 创建新节点
     Seq_Link_List_Node *p_new_node = (Seq_Link_List_Node *) malloc(sizeof(Seq_Link_List_Node));
@@ -171,7 +197,12 @@ int insert_seq_link_list(unsigned short seq, Seq_Link_List *seq_link_list) {
     return 1;
 }
 
-// 提交序号链表，返回需要重传的总序号数组大小
+/**
+ * 提交序号链表，返回需要重传的总序号数组大小
+ * @param seq_link_list 总序号链表
+ * @param required_seq 构造 ack response 用的待接收序号数组
+ * @return 0：未成功提交任何 Packet; 1：成功提交大于 1 个 Packet
+ */
 int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_seq[]) {
     if (seq_link_list->length == 0)
         return 0;
@@ -210,7 +241,10 @@ int commit_seq_link_list(Seq_Link_List *seq_link_list, unsigned short required_s
     return num;
 }
 
-// 初始化接收缓冲区
+/**
+ * 初始化接收缓冲区
+ * @param recv_buf 接收缓存区数组
+ */
 void init_recv_buf(Recv_List_Node recv_buf[]) {
     for (int i = 0; i < QUEUE_NUM; i++) {
         recv_buf[i].require_seq = 253;
@@ -218,7 +252,10 @@ void init_recv_buf(Recv_List_Node recv_buf[]) {
     }
 }
 
-// 获取一个空的缓存队列
+/**
+ * 获取一个空的缓存队列
+ * @return 空缓存队列
+ */
 Packet_List *get_pk_list() {
     Packet_List *pk_list = (Packet_List *) malloc(sizeof(Packet_List));
     pk_list->head = NULL;
@@ -227,17 +264,22 @@ Packet_List *get_pk_list() {
     return pk_list;
 }
 
-// 把一个Packet插入对应的缓存队列
+/**
+ * 把一个Packet插入对应的缓存队列
+ * @param p_pk Packet 指针
+ * @param recv_buf 接收缓存区数组
+ * @return 0：插入失败；1：插入成功
+ */
 int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]) {
     // 获取包内的队列号和队内序号
     unsigned char QNum = p_pk->data.packet_data.seq_group.queue_num;
     unsigned char QSeq = p_pk->data.packet_data.seq_group.queue_seq;
-    // 创建新节点
+    // 创建新 Packet 节点
     Packet_List_Node *new_pk_list_node = (Packet_List_Node *) malloc(sizeof(Packet_List_Node));
     new_pk_list_node->packet = p_pk;
     new_pk_list_node->next = NULL;
 
-    // 当前缓存队列为空
+    // 当前缓存队列为空, 则直接插入队列
     if (recv_buf[QNum].pk_list.length == 0) {
         recv_buf[QNum].pk_list.head = new_pk_list_node;
         recv_buf[QNum].pk_list.length++;
@@ -245,60 +287,67 @@ int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]) {
         return 1;
     }
 
+    // 初始化两个用来指示插入位置的指针
     Packet_List_Node *copy_p = recv_buf[QNum].pk_list.head;
     Packet_List_Node *copy_p_next = copy_p->next;
 
-    // 接收的Packet序号比require_seq大（或等于）
-    if (QSeq >= recv_buf[QNum].require_seq) {
-        // 插入到队首
-        if (copy_p->packet->data.packet_data.seq_group.queue_seq > QSeq ||
-            copy_p->packet->data.packet_data.seq_group.queue_seq < recv_buf[QNum].require_seq
-           ) {
+    // 队首的Packet队内序号 和 期待接收的队内序号 进行比较
+    if (copy_p->packet->data.packet_data.seq_group.queue_seq > recv_buf[QNum].require_seq) {
+        // 要插入的序号 和 期待接收的序号 进行比较
+        if (QSeq == recv_buf[QNum].require_seq) {
+            // 直接插入到队首
             new_pk_list_node->next = copy_p;
             recv_buf[QNum].pk_list.head = new_pk_list_node;
             recv_buf[QNum].pk_list.length++;
 
             return 1;
+        } else if (QSeq > recv_buf[QNum].require_seq) {
+            // 插入到临界区以前
+            while (copy_p_next != NULL && QSeq > (copy_p_next->packet->data.packet_data.seq_group.queue_seq >
+                                                  recv_buf[QNum].require_seq
+                                                  ? copy_p_next->packet->data.packet_data.seq_group.queue_seq :
+                                                  MAX_QUEUE_SEQ + 1)) {
+                copy_p = copy_p_next;
+                copy_p_next = copy_p_next->next;
+            }
+
+        } else {
+            // 插入到临界区以后
+            while (copy_p_next != NULL && QSeq > (copy_p_next->packet->data.packet_data.seq_group.queue_seq <
+                                                  recv_buf[QNum].require_seq
+                                                  ? copy_p_next->packet->data.packet_data.seq_group.queue_seq : -1)) {
+                copy_p = copy_p_next;
+                copy_p_next = copy_p_next->next;
+            }
+
         }
 
-        // 插入到队中或队尾
-        // 指针移动
-        while (copy_p_next != NULL && QSeq > copy_p_next->packet->data.packet_data.seq_group.queue_seq) {
-            copy_p = copy_p_next;
-            copy_p_next = copy_p_next->next;
+    } else if (copy_p->packet->data.packet_data.seq_group.queue_seq < recv_buf[QNum].require_seq) {
+        // 要插入的序号 和 期待接收的序号 进行比较
+        if (QSeq >= recv_buf[QNum].require_seq) {
+            // 直接插入到队首(此时的队首Packet 队内序号小于期待接收的序号)
+            new_pk_list_node->next = copy_p;
+            recv_buf[QNum].pk_list.head = new_pk_list_node;
+            recv_buf[QNum].pk_list.length++;
+
+            return 1;
+        } else {
+            // 插入到队中/尾
+            while (copy_p_next != NULL && QSeq > copy_p_next->packet->data.packet_data.seq_group.queue_seq) {
+                copy_p = copy_p_next;
+                copy_p_next = copy_p_next->next;
+            }
         }
+
     } else {
-        // 缓冲队列头指针指向的Packet的队内序号值
-        unsigned char head_QSeq = recv_buf[QNum].pk_list.head->packet->data.packet_data.seq_group.queue_seq;
-
-        // 插入到队首
-        if(QSeq < head_QSeq && head_QSeq < recv_buf[QNum].require_seq){
-            new_pk_list_node->next = copy_p;
-            recv_buf[QNum].pk_list.head = new_pk_list_node;
-            recv_buf[QNum].pk_list.length++;
-
-            return 1;
-        }
-
-        // 指针移动-直到移过分界点0
-        while (copy_p_next != NULL && QSeq >=
-                                      (copy_p_next->packet->data.packet_data.seq_group.queue_seq > recv_buf[QNum].require_seq ? 0 :
-                                       copy_p_next->packet->data.packet_data.seq_group.queue_seq)) {
-            copy_p = copy_p_next;
-            copy_p_next = copy_p_next->next;
-        }
-
-        // 指针继续移动
-        while (copy_p_next != NULL && QSeq > copy_p_next->packet->data.packet_data.seq_group.queue_seq) {
-            copy_p = copy_p_next;
-            copy_p_next = copy_p_next->next;
-        }
+        printf("    error! the first packet's QSeq in Queue[%d] is repeated with the packet which to insert!", QNum);
+        exit(0);
     }
 
-    // 检测到重复序号（理论上推测为不可能），程序无法运行下去，直接退出
+    // 检测到重复序号（理论上推测为不可能），程序处理和继续运行，直接退出
     if (QSeq == copy_p->packet->data.packet_data.seq_group.queue_seq ||
         (copy_p_next != NULL && QSeq == copy_p_next->packet->data.packet_data.seq_group.queue_seq)) {
-        printf("!!!!!!!QNum.%d QSeq.%d: repeat packet!\n", QNum, QSeq);
+        printf("    error! QNum.%d QSeq.%d: repeat packet!\n", QNum, QSeq);
         exit(0);
     }
 
@@ -310,7 +359,12 @@ int insert_pk_list(Packet *p_pk, Recv_List_Node recv_buf[]) {
     return 1;
 }
 
-// 提交Packet缓存队列
+/**
+ * 提交Packet缓存队列
+ * @param QNum 缓存区队列号
+ * @param recv_buf 缓存区数据
+ * @return 0：未成功提交任何 Packet; 1：成功提交大于 1 个 Packet
+ */
 int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]) {
     while (recv_buf[QNum].pk_list.length != 0 && recv_buf[QNum].require_seq ==
                                                  recv_buf[QNum].pk_list.head->packet->data.packet_data.seq_group.queue_seq) {
@@ -330,7 +384,12 @@ int commit_pk_list(unsigned char QNum, Recv_List_Node recv_buf[]) {
     return 1;
 }
 
-// 创建 ack response Packet
+/**
+ * 创建 ack response Packet
+ * @param seq_num required_seq中的有效序号个数
+ * @param required_seq 期待接收的序号数组
+ * @return
+ */
 Packet create_ack_response(int seq_num, unsigned short required_seq[]) {
     Packet *pk_p = (Packet *) malloc(sizeof(Packet));
     pk_p->length = (unsigned char) seq_num;
